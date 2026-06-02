@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/GoToolSharing/htb-cli/config"
-	"github.com/GoToolSharing/htb-cli/lib/update"
-	"github.com/GoToolSharing/htb-cli/lib/webhooks"
+	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/update"
+	"github.com/0xb0nzi/htb-cli/lib/webhooks"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

@@ -3,7 +3,7 @@ package sherlocks
 import (
 	"fmt"
 
-	"github.com/GoToolSharing/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/config"
 	"github.com/rivo/tview"
 )
 

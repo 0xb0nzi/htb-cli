@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/GoToolSharing/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/config"
 	"github.com/briandowns/spinner"
 	"github.com/sahilm/fuzzy"
 )

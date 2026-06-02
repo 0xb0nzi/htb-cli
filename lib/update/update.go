@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/GoToolSharing/htb-cli/config"
-	"github.com/GoToolSharing/htb-cli/lib/utils"
+	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/utils"
 )
 
 func Check(newVersion string) (string, error) {
@@ -32,7 +32,7 @@ func Check(newVersion string) (string, error) {
 	config.GlobalConfig.Logger.Debug(fmt.Sprintf("config.Version : %s", config.Version))
 	var message string
 	if release.TagName != config.Version {
-		message = fmt.Sprintf("A new update is now available ! (%s)\nUpdate with : go install github.com/GoToolSharing/htb-cli@latest", release.TagName)
+		message = fmt.Sprintf("A new update is now available ! (%s)\nUpdate with : go install github.com/0xb0nzi/htb-cli@latest", release.TagName)
 	} else {
 		message = fmt.Sprintf("You're up to date ! (%s)", config.Version)
 	}

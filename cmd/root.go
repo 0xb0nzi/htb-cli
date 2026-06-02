@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/GoToolSharing/htb-cli/config"
-	"github.com/GoToolSharing/htb-cli/lib/update"
+	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/update"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

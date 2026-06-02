@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/GoToolSharing/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/config"
 	"github.com/spf13/cobra"
 )
 

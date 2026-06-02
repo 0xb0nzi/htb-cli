@@ -1,4 +1,4 @@
-module github.com/GoToolSharing/htb-cli
+module github.com/0xb0nzi/htb-cli
 
 go 1.20
 
