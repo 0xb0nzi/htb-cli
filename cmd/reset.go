@@ -32,15 +32,9 @@ func coreResetCmd() (string, error) {
 	}
 	config.GlobalConfig.Logger.Debug(fmt.Sprintf("Machine Type: %s", machineType))
 
-	// Determine the API endpoint and construct JSON data based on the machine type.
-	var endpoint string
-	switch machineType {
-	case "active":
-		endpoint = "/vm/reset"
-	default:
-		endpoint = "/arena/reset"
-	}
-	url := config.BaseHackTheBoxAPIURL + endpoint
+	// HTB unified machine resets under /vm/reset for every machine type
+	// (free, VIP and release arena). The former /arena/reset route has been removed.
+	url := config.BaseHackTheBoxAPIURL + "/vm/reset"
 
 	// Construct JSON data.
 	jsonData, err := json.Marshal(map[string]interface{}{"machine_id": machineID})

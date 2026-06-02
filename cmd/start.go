@@ -81,22 +81,13 @@ func coreStartCmd(machineChoosen string, machineID int) (string, error) {
 	// 	}
 	// }
 
-	var url string
-	var jsonData []byte
-
-	switch {
-	case machineType == "release":
-		url = config.BaseHackTheBoxAPIURL + "/arena/start"
-		jsonData = []byte("{}")
-	case userSubscription == "vip" || userSubscription == "vip+":
-		url = config.BaseHackTheBoxAPIURL + "/vm/spawn"
-		jsonData, err = json.Marshal(map[string]interface{}{"machine_id": machineID})
-		if err != nil {
-			return "", fmt.Errorf("failed to create JSON data: %w", err)
-		}
-	default:
-		url = config.BaseHackTheBoxAPIURL + fmt.Sprintf("%s%d", "/machine/play/", machineID)
-		jsonData = []byte("{}")
+	// HTB unified machine spawning under /vm/spawn for every machine type
+	// (free, VIP and release arena). The former /machine/play/{id} and
+	// /arena/start routes have been removed.
+	url := config.BaseHackTheBoxAPIURL + "/vm/spawn"
+	jsonData, err := json.Marshal(map[string]interface{}{"machine_id": machineID})
+	if err != nil {
+		return "", fmt.Errorf("failed to create JSON data: %w", err)
 	}
 
 	resp, err := utils.HtbRequest(http.MethodPost, url, jsonData)

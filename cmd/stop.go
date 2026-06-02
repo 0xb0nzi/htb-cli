@@ -12,30 +12,15 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	releaseAPI = fmt.Sprintf("%s/arena/stop", config.BaseHackTheBoxAPIURL)
-	vipAPI     = fmt.Sprintf("%s/vm/terminate", config.BaseHackTheBoxAPIURL)
-	defaultAPI = fmt.Sprintf("%s/machine/stop", config.BaseHackTheBoxAPIURL)
-)
+var terminateAPI = fmt.Sprintf("%s/vm/terminate", config.BaseHackTheBoxAPIURL)
 
-// buildMachineStopRequest constructs the URL endpoint and JSON data payload for stopping a machine based on its type and user's subscription.
-func buildMachineStopRequest(machineType string, userSubscription string, machineID int) (string, []byte) {
-	var apiEndpoint string
-	var jsonData []byte
-
-	if machineType == "release" {
-		return releaseAPI, []byte(`{}`)
-	}
-
-	switch userSubscription {
-	case "vip", "vip+":
-		apiEndpoint = vipAPI
-	default:
-		apiEndpoint = defaultAPI
-	}
-
-	jsonData = []byte(fmt.Sprintf(`{"machine_id": "%d"}`, machineID))
-	return apiEndpoint, jsonData
+// buildMachineStopRequest constructs the URL endpoint and JSON data payload for stopping a machine.
+// HTB unified machine termination under /vm/terminate for every machine type
+// (free, VIP and release arena). The former /machine/stop and /arena/stop
+// routes have been removed.
+func buildMachineStopRequest(machineID int) (string, []byte) {
+	jsonData := []byte(fmt.Sprintf(`{"machine_id": "%d"}`, machineID))
+	return terminateAPI, jsonData
 }
 
 // coreStopCmd stops the currently active machine.
@@ -86,7 +71,7 @@ func coreStopCmd() (string, error) {
 
 	config.GlobalConfig.Logger.Info(fmt.Sprintf("User subscription: %s", userSubscription))
 
-	apiEndpoint, jsonData := buildMachineStopRequest(machineType, userSubscription, machineID)
+	apiEndpoint, jsonData := buildMachineStopRequest(machineID)
 	resp, err := utils.HtbRequest(http.MethodPost, apiEndpoint, jsonData)
 	if err != nil {
 		return "", err
