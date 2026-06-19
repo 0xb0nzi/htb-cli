@@ -234,6 +234,14 @@ func ParseJsonMessage(resp *http.Response, key string) interface{} {
 	return result[key]
 }
 
+// isReleaseMachine reports whether the recommended "card1" object refers to the
+// given machine id. JSON numbers decode into float64, so the comparison must
+// account for that — a direct == against an int is always false.
+func isReleaseMachine(card map[string]interface{}, machineID int) bool {
+	id, ok := card["id"].(float64)
+	return ok && int(id) == machineID
+}
+
 // GetMachineType will return the machine type
 func GetMachineType(machine_id int) (string, error) {
 	// Check if the machine is the latest release
@@ -243,9 +251,7 @@ func GetMachineType(machine_id int) (string, error) {
 		return "", err
 	}
 	card := ParseJsonMessage(resp, "card1").(map[string]interface{})
-	// JSON numbers decode to float64; compare as int so the release/seasonal
-	// machine is actually detected (the direct == was always false).
-	if id, ok := card["id"].(float64); ok && int(id) == machine_id {
+	if isReleaseMachine(card, machine_id) {
 		return "release", nil
 	}
 
