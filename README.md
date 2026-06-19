@@ -24,11 +24,11 @@
 >
 > - [x] **Machine lifecycle** — `start` / `stop` / `reset` migrated to unified `/vm/*` endpoints
 > - [x] **Machine info & listing** (`machines`, `info`) — migrated the removed `/machine/unreleased` and `/user/profile/activity` routes to the unified `/api/v5` endpoints
-> - [ ] **Flag submission** (`submit`, `getflag`) — verify against current submit API
-> - [ ] **Sherlocks** (`sherlocks`) — DFIR challenge support
-> - [ ] **VPN** (`vpn`) — config download / region switching
-> - [ ] **Pwnbox** (`pwnbox`) — spawn / terminate
-> - [ ] **Challenges / Fortress / Pro Labs** — verify progress & info endpoints
+> - [x] **Flag submission** (`submit`, `getflag`) — own routes verified; fixed broken fortress search (`/fortresses` is now a JSON array) and release-machine detection
+> - [x] **Sherlocks** (`sherlocks`) — listing, play, tasks, download-link and flag-submit routes verified against the live API
+> - [x] **VPN** (`vpn`) — server list (`/connections/servers`) and config download (`/access/ovpnfile`) verified
+> - [x] **Pwnbox** (`pwnbox`) — `--stop` (`/pwnbox/terminate`) verified; `--start` remains blocked upstream by HTB's v3 reCAPTCHA
+> - [x] **Challenges / Fortress / Pro Labs** — progress/info and search endpoints verified (`/fortresses`, `/prolabs`, `/challenge/*`, profile progress)
 > - [ ] **Shoutbox** (`shoutbox`) and **/etc/hosts helper** (`hosts`)
 > - [ ] Full end-to-end pass against a live HTB account
 > - [ ] Re-point module path, badges, and release CI to this fork
