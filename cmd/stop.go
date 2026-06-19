@@ -19,7 +19,9 @@ var terminateAPI = fmt.Sprintf("%s/vm/terminate", config.BaseHackTheBoxAPIURL)
 // (free, VIP and release arena). The former /machine/stop and /arena/stop
 // routes have been removed.
 func buildMachineStopRequest(machineID int) (string, []byte) {
-	jsonData := []byte(fmt.Sprintf(`{"machine_id": "%d"}`, machineID))
+	// machine_id is sent as a number, matching /vm/spawn, /vm/reset and
+	// /vm/extend. The API accepts either form, but keep it consistent.
+	jsonData := []byte(fmt.Sprintf(`{"machine_id": %d}`, machineID))
 	return terminateAPI, jsonData
 }
 

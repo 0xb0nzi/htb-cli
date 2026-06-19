@@ -35,6 +35,48 @@ func fetchData(baseURL string, itemID int, endpoint string, infoKey string) (int
 	return utils.ParseJsonMessage(resp, infoKey), nil
 }
 
+// fetchUserProfilePanels gathers the fortress, pro-lab and activity sections
+// shown on a user profile, keyed by panel name for the TUI. Failures on an
+// individual section are reported but don't abort the others.
+func fetchUserProfilePanels(userID int) map[string]map[string]interface{} {
+	endpoints := []struct {
+		name    string
+		baseURL string
+		url     string
+		infoKey string
+	}{
+		{"Fortresses", config.BaseHackTheBoxAPIURL, "/user/profile/progress/fortress/", "profile"},
+		{"Prolabs", config.BaseHackTheBoxAPIURL, "/user/profile/progress/prolab/", "profile"},
+		// Activity was removed from v4 and now lives under v5, returning a
+		// flat {"data": [...]} array instead of a nested profile object.
+		{"Activity", config.BaseHackTheBoxAPIURLv5, "/user/profile/activity/", "data"},
+	}
+
+	dataMaps := make(map[string]map[string]interface{})
+	for _, ep := range endpoints {
+		raw, err := fetchData(ep.baseURL, userID, ep.url, ep.infoKey)
+		if err != nil {
+			fmt.Printf("Error fetching data for %s: %v\n", ep.name, err)
+			continue
+		}
+
+		if ep.name == "Activity" {
+			// Wrap the v5 array so the GUI, which reads
+			// dataMaps["Activity"]["activity"], finds it where it expects.
+			dataMaps[ep.name] = map[string]interface{}{"activity": raw}
+			continue
+		}
+
+		profile, ok := raw.(map[string]interface{})
+		if !ok {
+			fmt.Printf("Error fetching data for %s: unexpected response format\n", ep.name)
+			continue
+		}
+		dataMaps[ep.name] = profile
+	}
+	return dataMaps
+}
+
 // fetchAndDisplayInfo fetches and displays information based on the specified parameters.
 func fetchAndDisplayInfo(url, header string, params []string, elementType string) error {
 	w := utils.SetTabWriterHeader(header)
@@ -77,43 +119,6 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 		info := utils.ParseJsonMessage(resp, infoKey)
 		data := info.(map[string]interface{})
 
-		endpoints := []struct {
-			name    string
-			baseURL string
-			url     string
-			infoKey string
-		}{
-			{"Fortresses", config.BaseHackTheBoxAPIURL, "/user/profile/progress/fortress/", "profile"},
-			{"Prolabs", config.BaseHackTheBoxAPIURL, "/user/profile/progress/prolab/", "profile"},
-			// Activity was removed from v4 and now lives under v5, returning a
-			// flat {"data": [...]} array instead of a nested profile object.
-			{"Activity", config.BaseHackTheBoxAPIURLv5, "/user/profile/activity/", "data"},
-		}
-
-		dataMaps := make(map[string]map[string]interface{})
-
-		for _, ep := range endpoints {
-			raw, err := fetchData(ep.baseURL, itemID, ep.url, ep.infoKey)
-			if err != nil {
-				fmt.Printf("Error fetching data for %s: %v\n", ep.name, err)
-				continue
-			}
-
-			if ep.name == "Activity" {
-				// Wrap the v5 array so the GUI, which reads
-				// dataMaps["Activity"]["activity"], finds it where it expects.
-				dataMaps[ep.name] = map[string]interface{}{"activity": raw}
-				continue
-			}
-
-			profile, ok := raw.(map[string]interface{})
-			if !ok {
-				fmt.Printf("Error fetching data for %s: unexpected response format\n", ep.name)
-				continue
-			}
-			dataMaps[ep.name] = profile
-		}
-
 		var bodyData string
 		if elementType == "Machine" {
 			status := utils.SetStatus(data)
@@ -135,7 +140,9 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 			}
 			bodyData = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", data["name"], data["category_name"], retiredStatus, data["difficulty"], data["stars"], data["solves"], status, datetime)
 		} else if elementType == "Username" {
-			utils.DisplayInformationsGUI(data, dataMaps)
+			// The fortress / pro-lab / activity panels are only rendered for
+			// user profiles, so fetch them here rather than for every lookup type.
+			utils.DisplayInformationsGUI(data, fetchUserProfilePanels(itemID))
 			return nil
 		}
 
