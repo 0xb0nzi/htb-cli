@@ -23,7 +23,7 @@
 > end-to-end against a live account.
 >
 > - [x] **Machine lifecycle** — `start` / `stop` / `reset` migrated to unified `/vm/*` endpoints
-> - [ ] **Machine info & listing** (`machines`, `info`) — verify profile/listing endpoints
+> - [x] **Machine info & listing** (`machines`, `info`) — migrated the removed `/machine/unreleased` and `/user/profile/activity` routes to the unified `/api/v5` endpoints
 > - [ ] **Flag submission** (`submit`, `getflag`) — verify against current submit API
 > - [ ] **Sherlocks** (`sherlocks`) — DFIR challenge support
 > - [ ] **VPN** (`vpn`) — config download / region switching

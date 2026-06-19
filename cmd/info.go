@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -21,9 +20,11 @@ type Response struct {
 	ExpiresAt string `json:"expires_at"`
 }
 
-// Retrieves data for user profile
-func fetchData(itemID int, endpoint string, infoKey string) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s%s%d", config.BaseHackTheBoxAPIURL, endpoint, itemID)
+// fetchData retrieves a section of profile data from the given API base and
+// endpoint, returning the raw value under infoKey. Callers decide how to
+// interpret it (a map for the v4 progress endpoints, an array for v5 activity).
+func fetchData(baseURL string, itemID int, endpoint string, infoKey string) (interface{}, error) {
+	url := fmt.Sprintf("%s%s%d", baseURL, endpoint, itemID)
 	config.GlobalConfig.Logger.Debug(fmt.Sprintf("URL: %s", url))
 
 	resp, err := utils.HtbRequest(http.MethodGet, url, nil)
@@ -31,12 +32,7 @@ func fetchData(itemID int, endpoint string, infoKey string) (map[string]interfac
 		return nil, err
 	}
 
-	parsedInfo := utils.ParseJsonMessage(resp, infoKey)
-	dataMap, ok := parsedInfo.(map[string]interface{})
-	if !ok {
-		return nil, errors.New("Could not convert parsedInfo to map[string]interface{}")
-	}
-	return dataMap, nil
+	return utils.ParseJsonMessage(resp, infoKey), nil
 }
 
 // fetchAndDisplayInfo fetches and displays information based on the specified parameters.
@@ -82,23 +78,40 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 		data := info.(map[string]interface{})
 
 		endpoints := []struct {
-			name string
-			url  string
+			name    string
+			baseURL string
+			url     string
+			infoKey string
 		}{
-			{"Fortresses", "/user/profile/progress/fortress/"},
-			{"Prolabs", "/user/profile/progress/prolab/"},
-			{"Activity", "/user/profile/activity/"},
+			{"Fortresses", config.BaseHackTheBoxAPIURL, "/user/profile/progress/fortress/", "profile"},
+			{"Prolabs", config.BaseHackTheBoxAPIURL, "/user/profile/progress/prolab/", "profile"},
+			// Activity was removed from v4 and now lives under v5, returning a
+			// flat {"data": [...]} array instead of a nested profile object.
+			{"Activity", config.BaseHackTheBoxAPIURLv5, "/user/profile/activity/", "data"},
 		}
 
 		dataMaps := make(map[string]map[string]interface{})
 
 		for _, ep := range endpoints {
-			data, err := fetchData(itemID, ep.url, "profile")
+			raw, err := fetchData(ep.baseURL, itemID, ep.url, ep.infoKey)
 			if err != nil {
 				fmt.Printf("Error fetching data for %s: %v\n", ep.name, err)
 				continue
 			}
-			dataMaps[ep.name] = data
+
+			if ep.name == "Activity" {
+				// Wrap the v5 array so the GUI, which reads
+				// dataMaps["Activity"]["activity"], finds it where it expects.
+				dataMaps[ep.name] = map[string]interface{}{"activity": raw}
+				continue
+			}
+
+			profile, ok := raw.(map[string]interface{})
+			if !ok {
+				fmt.Printf("Error fetching data for %s: unexpected response format\n", ep.name)
+				continue
+			}
+			dataMaps[ep.name] = profile
 		}
 
 		var bodyData string

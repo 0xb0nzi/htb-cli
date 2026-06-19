@@ -31,6 +31,11 @@ const HostHackTheBox = "labs.hackthebox.com"
 
 const BaseHackTheBoxAPIURL = "https://" + HostHackTheBox + "/api/v4"
 
+// BaseHackTheBoxAPIURLv5 is HTB's newer API version. Some routes were removed
+// from v4 during the API consolidation and now live only under v5 (e.g. the
+// unreleased machine listing and the user profile activity feed).
+const BaseHackTheBoxAPIURLv5 = "https://" + HostHackTheBox + "/api/v5"
+
 const Version = "v1.7.0"
 
 func ConfigureLogger() error {

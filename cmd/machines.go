@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/0xb0nzi/htb-cli/config"
@@ -14,9 +15,11 @@ import (
 )
 
 const (
-	machineURL     = config.BaseHackTheBoxAPIURL + "/machine/paginated/?per_page=20"
-	retiredURL     = config.BaseHackTheBoxAPIURL + "/machine/list/retired/paginated/?per_page=20&sort_by=release-date"
-	scheduledURL   = config.BaseHackTheBoxAPIURL + "/machine/unreleased/"
+	machineURL = config.BaseHackTheBoxAPIURL + "/machine/paginated/?per_page=20"
+	retiredURL = config.BaseHackTheBoxAPIURL + "/machine/list/retired/paginated/?per_page=20&sort_by=release-date"
+	// HTB removed the v4 /machine/unreleased route; the unreleased listing now
+	// lives under the unified v5 /machines endpoint filtered by state.
+	scheduledURL   = config.BaseHackTheBoxAPIURLv5 + "/machines?state=unreleased&per_page=20"
 	activeTitle    = "Active"
 	retiredTitle   = "Retired"
 	scheduledTitle = "Scheduled"
@@ -42,12 +45,14 @@ func getColorFromDifficultyText(difficultyText string) string {
 	}
 }
 
-// getOSEmoji returns an emoji corresponding to the given operating system
+// getOSEmoji returns an emoji corresponding to the given operating system.
+// The comparison is case-insensitive because v4 returns "Windows"/"Linux"
+// while the v5 listing returns "windows"/"linux".
 func getOSEmoji(os string) string {
-	switch os {
-	case "Linux":
+	switch strings.ToLower(os) {
+	case "linux":
 		return Penguin
-	case "Windows":
+	case "windows":
 		return Computer
 	default:
 		return ""
@@ -64,13 +69,9 @@ func createFlex(info interface{}, title string, isScheduled bool) (*tview.Flex, 
 
 		// Determining the color according to difficulty
 
-		key := "Undefined"
-		_ = key
-		if title == "Scheduled" {
-			key = data["difficulty_text"].(string)
-		} else {
-			key = data["difficultyText"].(string)
-		}
+		// Both the v4 active/retired lists and the v5 unreleased list expose the
+		// difficulty as "difficultyText".
+		key := data["difficultyText"].(string)
 		color := getColorFromDifficultyText(key)
 		osEmoji := getOSEmoji(data["os"].(string))
 
@@ -79,7 +80,7 @@ func createFlex(info interface{}, title string, isScheduled bool) (*tview.Flex, 
 		// Choice of display format depending on the nature of the information
 		if isScheduled {
 			formatString = fmt.Sprintf("%-10s %s%-10s %s%-10s[-]",
-				data["name"], osEmoji, data["os"], color, data["difficulty_text"])
+				data["name"], osEmoji, data["os"], color, data["difficultyText"])
 		} else {
 			// Convert and format date
 			parsedDate, err := time.Parse(time.RFC3339Nano, data["release"].(string))

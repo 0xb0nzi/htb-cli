@@ -83,23 +83,34 @@ func displayInfo(dataMaps map[string]map[string]interface{}, dataMapKey string, 
 	var formatterFunc func(item map[string]interface{}) string
 	if dataMapKey == "activity" {
 		formatterFunc = func(item map[string]interface{}) string {
-			var object_type interface{}
-			switch item["object_type"].(string) {
-			case "fortress":
-				object_type = item["flag_title"]
+			// v5 activity items are discriminated by "type"; the descriptive
+			// label and the category text both depend on it.
+			itemType, _ := item["type"].(string)
+			var label, category interface{}
+			switch itemType {
+			case "root":
+				label, category = "System", "machine"
+			case "user":
+				label, category = "User", "machine"
 			case "challenge":
-				object_type = item["challenge_category"]
-			case "machine":
-				switch item["type"].(string) {
-				case "root":
-					object_type = "System"
-				case "user":
-					object_type = "User"
-				default:
-					object_type = item["type"].(string)
-				}
+				label, category = item["categoryName"], "challenge"
+			case "fortress":
+				label, category = item["fortressName"], "fortress"
+			case "prolab":
+				label, category = item["prolabName"], "prolab"
+			case "sherlock":
+				label, category = "Sherlock", "sherlock"
+			default:
+				label, category = itemType, itemType
 			}
-			return fmt.Sprintf("[::b]Owned %v - %s %s - %s - [green]+[%vpts][-]", object_type, item["name"], item["object_type"], item["date_diff"], item["points"])
+
+			// ownDate is an ISO-8601 timestamp; show just the calendar date.
+			date, _ := item["ownDate"].(string)
+			if len(date) >= 10 {
+				date = date[:10]
+			}
+
+			return fmt.Sprintf("[::b]Owned %v - %s %s - %s - [green]+[%vpts][-]", label, item["name"], category, date, item["points"])
 		}
 	} else {
 		formatterFunc = func(item map[string]interface{}) string {
