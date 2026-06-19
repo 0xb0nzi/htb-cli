@@ -18,8 +18,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
 	"github.com/sahilm/fuzzy"
 )
@@ -243,7 +243,9 @@ func GetMachineType(machine_id int) (string, error) {
 		return "", err
 	}
 	card := ParseJsonMessage(resp, "card1").(map[string]interface{})
-	if card["id"] == machine_id {
+	// JSON numbers decode to float64; compare as int so the release/seasonal
+	// machine is actually detected (the direct == was always false).
+	if id, ok := card["id"].(float64); ok && int(id) == machine_id {
 		return "release", nil
 	}
 

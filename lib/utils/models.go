@@ -28,10 +28,11 @@ type Item struct {
 	Name string `json:"name"`
 }
 
-// Structure pour représenter le JSON entier
+// Structure pour représenter le JSON entier.
+// The /fortresses endpoint returns "data" as a JSON array of fortresses.
 type JsonResponse struct {
-	Status bool            `json:"status"`
-	Data   map[string]Item `json:"data"`
+	Status bool   `json:"status"`
+	Data   []Item `json:"data"`
 }
 
 // Prolabs
