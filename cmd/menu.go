@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/challenge"
 	"github.com/0xb0nzi/htb-cli/lib/hosts"
 	"github.com/0xb0nzi/htb-cli/lib/menu"
 	"github.com/0xb0nzi/htb-cli/lib/submit"
@@ -219,18 +221,21 @@ func fetchChallengeList() ([]challengeEntry, error) {
 	return entries, nil
 }
 
-// challengeInfoText fetches /challenge/info/{id} and renders a human-readable
-// summary including the prose description and first blood.
-func challengeInfoText(id int) (string, error) {
+// fetchChallengeInfo returns the /challenge/info/{id} object.
+func fetchChallengeInfo(id int) (map[string]interface{}, error) {
 	resp, err := utils.HtbRequest(http.MethodGet, fmt.Sprintf("%s/challenge/info/%d", config.BaseHackTheBoxAPIURL, id), nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	data, ok := utils.ParseJsonMessage(resp, "challenge").(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("unexpected response from challenge info")
+		return nil, fmt.Errorf("unexpected response from challenge info")
 	}
+	return data, nil
+}
 
+// formatChallengeInfo renders a challenge summary including description + first blood.
+func formatChallengeInfo(data map[string]interface{}) string {
 	field := func(key string) string {
 		if v, ok := data[key]; ok && v != nil {
 			return fmt.Sprintf("%v", v)
@@ -250,20 +255,63 @@ func challengeInfoText(id int) (string, error) {
 	if desc, ok := data["description"].(string); ok && desc != "" {
 		msg += "\n\n" + desc
 	}
-	return msg, nil
+	return msg
 }
 
-// menuShowChallenge displays a challenge's info and offers to submit a flag for it.
+// menuShowChallenge displays a challenge's info, then loops on per-challenge
+// actions (submit a flag, download files when available).
 func menuShowChallenge(m *menu.Menu, id int) {
-	info, err := challengeInfoText(id)
+	data, err := fetchChallengeInfo(id)
 	if err != nil {
 		m.Notify(fmt.Sprintf("Failed to load challenge: %v", err))
 		return
 	}
-	m.Notify(info)
-	if m.Confirm("Submit a flag for this challenge?") {
-		menuSubmitChallengeByID(m, id)
+	m.Notify(formatChallengeInfo(data))
+
+	name, _ := data["name"].(string)
+	downloadable, _ := data["download"].(bool)
+
+	for {
+		opts := []string{"Submit flag"}
+		if downloadable {
+			opts = append(opts, "Download files")
+		}
+		opts = append(opts, "Back")
+
+		_, action, err := m.Select(name, opts)
+		if err != nil {
+			return
+		}
+		switch action {
+		case "Submit flag":
+			menuSubmitChallengeByID(m, id)
+		case "Download files":
+			menuDownloadChallenge(m, id, name)
+		case "Back":
+			return
+		}
 	}
+}
+
+// menuDownloadChallenge downloads a challenge's files, defaulting to ~/<name>.zip.
+func menuDownloadChallenge(m *menu.Menu, id int, name string) {
+	home, _ := os.UserHomeDir()
+	safe := strings.ReplaceAll(name, " ", "_")
+	def := filepath.Join(home, safe+".zip")
+
+	path, err := m.Input(fmt.Sprintf("Save to (blank = %s)", def))
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(path) == "" {
+		path = def
+	}
+	saved, err := challenge.Download(id, path)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Download failed: %v", err))
+		return
+	}
+	m.Notify("Downloaded to " + saved)
 }
 
 // menuBrowseChallenges lists challenges, lets the user pick one and shows its info.
