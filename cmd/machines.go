@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/output"
 	"github.com/0xb0nzi/htb-cli/lib/utils"
 	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
@@ -114,10 +115,50 @@ func createFlex(info interface{}, title string, isScheduled bool) (*tview.Flex, 
 	return flex, nil
 }
 
+// outputMachinesJSON fetches the active, retired and scheduled machine lists and
+// prints them as a single JSON document. It powers `htb-cli machines --json`,
+// the scriptable counterpart of the TUI view.
+func outputMachinesJSON() error {
+	fetch := func(url string) (interface{}, error) {
+		resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get data from %s: %w", url, err)
+		}
+		return utils.ParseJsonMessage(resp, "data"), nil
+	}
+
+	active, err := fetch(machineURL)
+	if err != nil {
+		return err
+	}
+	retired, err := fetch(retiredURL)
+	if err != nil {
+		return err
+	}
+	scheduled, err := fetch(scheduledURL)
+	if err != nil {
+		return err
+	}
+
+	return output.PrintJSON(map[string]interface{}{
+		"active":    active,
+		"retired":   retired,
+		"scheduled": scheduled,
+	})
+}
+
 var machinesCmd = &cobra.Command{
 	Use:   "machines",
 	Short: "Displays active / retired machines and next machines to be released",
 	Run: func(cmd *cobra.Command, args []string) {
+		if config.GlobalConfig.OutputJSON {
+			if err := outputMachinesJSON(); err != nil {
+				config.GlobalConfig.Logger.Error("", zap.Error(err))
+				os.Exit(1)
+			}
+			return
+		}
+
 		app := tview.NewApplication()
 
 		getAndDisplayFlex := func(url, title string, isScheduled bool, flex *tview.Flex) error {

@@ -363,6 +363,86 @@ func getVPNConfiguration(url string) error {
 	return nil
 }
 
+// vpnProducts is the canonical set of HTB VPN products queried by both the
+// human-readable List and the machine-readable ListData.
+var vpnProducts = []string{"labs", "starting_point", "fortresses", "competitive"}
+
+// ListData returns the assigned VPN server for each product in a structured
+// form. Unlike List it prints nothing, so it can feed `--json` output and the
+// interactive menu. A product the user cannot access (HTTP 401) is reported
+// with Available=false rather than dropped, so callers see the full picture.
+func ListData() ([]ServerInfo, error) {
+	baseURL := fmt.Sprintf("%s/connections/servers?product=", config.BaseHackTheBoxAPIURL)
+
+	var (
+		mu       sync.Mutex
+		servers  []ServerInfo
+		wg       sync.WaitGroup
+		firstErr error
+	)
+
+	recordErr := func(err error) {
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = err
+		}
+		mu.Unlock()
+	}
+
+	for _, product := range vpnProducts {
+		wg.Add(1)
+		go func(product string) {
+			defer wg.Done()
+			resp, err := utils.HtbRequest(http.MethodGet, baseURL+product, nil)
+			if err != nil {
+				recordErr(err)
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == 401 {
+				mu.Lock()
+				servers = append(servers, ServerInfo{Product: product, Available: false})
+				mu.Unlock()
+				return
+			}
+			if resp.StatusCode != http.StatusOK {
+				recordErr(fmt.Errorf("error: bad status code for %s : %d", product, resp.StatusCode))
+				return
+			}
+
+			jsonData, err := io.ReadAll(resp.Body)
+			if err != nil {
+				recordErr(err)
+				return
+			}
+			var response Response
+			if err := json.Unmarshal(jsonData, &response); err != nil {
+				recordErr(err)
+				return
+			}
+
+			mu.Lock()
+			servers = append(servers, ServerInfo{
+				Product:          product,
+				ID:               response.Data.Assigned.ID,
+				FriendlyName:     response.Data.Assigned.FriendlyName,
+				CurrentClients:   response.Data.Assigned.CurrentClients,
+				Location:         response.Data.Assigned.Location,
+				LocationFriendly: response.Data.Assigned.LocationFriendly,
+				Available:        true,
+			})
+			mu.Unlock()
+		}(product)
+	}
+
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return servers, nil
+}
+
 func List() error {
 	config.GlobalConfig.Logger.Info("Recovering VPN configurations")
 	baseURL := fmt.Sprintf("%s/connections/servers?product=", config.BaseHackTheBoxAPIURL)

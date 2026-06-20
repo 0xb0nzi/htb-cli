@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/output"
 	"github.com/0xb0nzi/htb-cli/lib/vpn"
 	"github.com/0xb0nzi/htb-cli/lib/webhooks"
 	"github.com/spf13/cobra"
@@ -28,6 +29,18 @@ var vpnCmd = &cobra.Command{
 		}
 
 		if listVPNParam {
+			if config.GlobalConfig.OutputJSON {
+				servers, err := vpn.ListData()
+				if err != nil {
+					config.GlobalConfig.Logger.Error("", zap.Error(err))
+					os.Exit(1)
+				}
+				if err := output.PrintJSON(servers); err != nil {
+					config.GlobalConfig.Logger.Error("", zap.Error(err))
+					os.Exit(1)
+				}
+				return
+			}
 			err := vpn.List()
 			if err != nil {
 				config.GlobalConfig.Logger.Error("", zap.Error(err))

@@ -24,6 +24,15 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// newSpinner builds the request progress spinner. In JSON mode it writes to
+// stderr so it never corrupts the JSON document emitted on stdout.
+func newSpinner() *spinner.Spinner {
+	if config.GlobalConfig.OutputJSON {
+		return spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+	}
+	return spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+}
+
 // SetTabWriterHeader will display the information in an array
 func SetTabWriterHeader(header string) *tabwriter.Writer {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', tabwriter.Debug)
@@ -393,7 +402,7 @@ func GetActiveReleaseArenaMachineIP() (string, error) {
 
 // HtbRequest makes an HTTP request to the Hackthebox API
 func HtbRequest(method string, urlParam string, jsonData []byte) (*http.Response, error) {
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s := newSpinner()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -500,7 +509,7 @@ func GetInformationsFromActiveMachine() (map[string]interface{}, error) {
 
 // HTTPRequest makes an HTTP request with the specified method, URL, proxy settings, and data.
 func HTTPRequest(method string, urlParam string, jsonData []byte) (*http.Response, error) {
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s := newSpinner()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {

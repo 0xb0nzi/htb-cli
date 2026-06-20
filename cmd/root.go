@@ -35,7 +35,8 @@ var rootCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			config.GlobalConfig.Logger.Debug(fmt.Sprintf("Message : %s", message))
-			if strings.Contains(message, "A new update") {
+			// Don't print the update banner in JSON mode; it would corrupt stdout.
+			if strings.Contains(message, "A new update") && !config.GlobalConfig.OutputJSON {
 				fmt.Printf("%s\n\n", message)
 			}
 		}
@@ -56,4 +57,5 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&config.GlobalConfig.ProxyParam, "proxy", "", "", "Configure a URL for an HTTP proxy")
 	rootCmd.PersistentFlags().BoolVarP(&config.GlobalConfig.BatchParam, "batch", "b", false, "Don't ask questions")
 	rootCmd.PersistentFlags().BoolVarP(&config.GlobalConfig.NoCheck, "no-check", "n", false, "Don't check for new updates")
+	rootCmd.PersistentFlags().BoolVarP(&config.GlobalConfig.OutputJSON, "json", "j", false, "Output machine-readable JSON instead of tables/TUI (supported by: machines, vpn --list)")
 }

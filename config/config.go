@@ -17,6 +17,10 @@ type Settings struct {
 	ProxyParam string
 	BatchParam bool
 	NoCheck    bool
+	// OutputJSON makes commands emit machine-readable JSON on stdout instead of
+	// their human-readable / TUI output. Progress spinners and logs are
+	// redirected to stderr when this is set so stdout stays valid JSON.
+	OutputJSON bool
 }
 
 var GlobalConfig Settings
@@ -55,12 +59,19 @@ func ConfigureLogger() error {
 	encoderConfig := zap.NewDevelopmentEncoderConfig()
 	encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder // Ajoute des couleurs pour les niveaux de log
 
+	// In JSON mode all log output must go to stderr so stdout carries only the
+	// JSON document a consumer is parsing.
+	logOutput := "stdout"
+	if GlobalConfig.OutputJSON {
+		logOutput = "stderr"
+	}
+
 	cfg := zap.Config{
 		Level:            zap.NewAtomicLevelAt(logLevel),
 		Development:      true,
 		Encoding:         "console",
 		EncoderConfig:    encoderConfig,
-		OutputPaths:      []string{"stdout"},
+		OutputPaths:      []string{logOutput},
 		ErrorOutputPaths: []string{"stderr"},
 	}
 
