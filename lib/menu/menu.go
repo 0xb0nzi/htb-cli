@@ -50,6 +50,16 @@ func inPath(bin string) bool {
 	return err == nil
 }
 
+// rofiThemeArgs returns the rofi -theme flag when HTB_ROFI_THEME points at a
+// theme file, letting the distribution layer ship a consistent look without
+// touching the user's global rofi config.
+func rofiThemeArgs() []string {
+	if theme := os.Getenv("HTB_ROFI_THEME"); theme != "" {
+		return []string{"-theme", theme}
+	}
+	return nil
+}
+
 // Detect picks the best backend for the current environment. It honours an
 // explicit override via the HTB_MENU_BACKEND environment variable.
 func Detect() Backend {
@@ -85,7 +95,7 @@ func (m *Menu) Select(prompt string, items []string) (int, string, error) {
 	}
 	switch m.Backend {
 	case BackendRofi:
-		return m.selectExternal("rofi", []string{"-dmenu", "-i", "-p", prompt}, items)
+		return m.selectExternal("rofi", append([]string{"-dmenu", "-i", "-p", prompt}, rofiThemeArgs()...), items)
 	case BackendDmenu:
 		return m.selectExternal("dmenu", []string{"-i", "-p", prompt}, items)
 	case BackendFzf:
@@ -157,7 +167,7 @@ func parseTerminalChoice(line string, count int) (int, error) {
 func (m *Menu) Input(prompt string) (string, error) {
 	switch m.Backend {
 	case BackendRofi:
-		return m.inputExternal("rofi", []string{"-dmenu", "-p", prompt, "-l", "0"})
+		return m.inputExternal("rofi", append([]string{"-dmenu", "-p", prompt, "-l", "0"}, rofiThemeArgs()...))
 	case BackendDmenu:
 		return m.inputExternal("dmenu", []string{"-p", prompt})
 	default:
@@ -187,7 +197,7 @@ func (m *Menu) inputExternal(bin string, args []string) (string, error) {
 // uses term.ReadPassword. (fzf/dmenu fall back to a masked rofi or terminal.)
 func (m *Menu) Password(prompt string) (string, error) {
 	if m.Backend == BackendRofi {
-		cmd := exec.Command("rofi", "-dmenu", "-password", "-p", prompt, "-l", "0")
+		cmd := exec.Command("rofi", append([]string{"-dmenu", "-password", "-p", prompt, "-l", "0"}, rofiThemeArgs()...)...)
 		cmd.Stdin = strings.NewReader("")
 		cmd.Stderr = os.Stderr
 		out, err := cmd.Output()
