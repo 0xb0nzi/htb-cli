@@ -31,8 +31,11 @@ func SubmitFlag(url string, payload map[string]interface{}) (string, error) {
 	return message, nil
 }
 
-// coreSubmitCmd handles the submission of flags for machines or challenges, returning a status message or error.
-func CoreSubmitCmd(difficultyParam int, modeType string, modeValue string) (string, int, error) {
+// CoreSubmitCmd handles the submission of flags for machines or challenges, returning a status message or error.
+// When flagValue is non-empty it is used directly; otherwise the flag is read
+// interactively from the terminal. The non-interactive path lets the menu and
+// scripts submit flags without a controlling TTY.
+func CoreSubmitCmd(difficultyParam int, modeType string, modeValue string, flagValue string) (string, int, error) {
 	var payload map[string]interface{}
 	var difficultyString string
 	var url string
@@ -119,13 +122,16 @@ func CoreSubmitCmd(difficultyParam int, modeType string, modeValue string) (stri
 		mID = releaseID
 	}
 
-	fmt.Print("Flag : ")
-	flagByte, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		fmt.Println("Error reading flag")
-		return "", 0, fmt.Errorf("error reading flag")
+	flagOriginal := flagValue
+	if flagOriginal == "" {
+		fmt.Print("Flag : ")
+		flagByte, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println("Error reading flag")
+			return "", 0, fmt.Errorf("error reading flag")
+		}
+		flagOriginal = string(flagByte)
 	}
-	flagOriginal := string(flagByte)
 	flag := strings.ReplaceAll(flagOriginal, " ", "")
 
 	config.GlobalConfig.Logger.Debug(fmt.Sprintf("Flag: %s", flag))

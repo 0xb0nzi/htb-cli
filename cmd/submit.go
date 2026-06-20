@@ -77,7 +77,13 @@ var submitCmd = &cobra.Command{
 		config.GlobalConfig.Logger.Debug(fmt.Sprintf("Mode type: %s", modeType))
 		config.GlobalConfig.Logger.Debug(fmt.Sprintf("Mode value: %s", modeValue))
 
-		output, machineID, err := submit.CoreSubmitCmd(difficultyParam, modeType, modeValue)
+		flagParam, err := cmd.Flags().GetString("flag")
+		if err != nil {
+			config.GlobalConfig.Logger.Error("", zap.Error(err))
+			os.Exit(1)
+		}
+
+		output, machineID, err := submit.CoreSubmitCmd(difficultyParam, modeType, modeValue, flagParam)
 		if err != nil {
 			config.GlobalConfig.Logger.Error("", zap.Error(err))
 			os.Exit(1)
@@ -109,4 +115,5 @@ func init() {
 	submitCmd.Flags().StringP("fortress", "f", "", "Fortress Name")
 	submitCmd.Flags().StringP("prolab", "p", "", "Prolab Name")
 	submitCmd.Flags().IntP("difficulty", "d", 0, "Difficulty")
+	submitCmd.Flags().String("flag", "", "Flag value (skips the interactive prompt; useful for scripts and the menu)")
 }
