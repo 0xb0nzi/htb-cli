@@ -479,10 +479,14 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 			"Browse challenges",
 			"Submit challenge flag",
 			"Sherlocks",
+			"Fortresses",
+			"Pro Labs",
 			"Reset machine",
 			"Stop machine",
 			"Connect VPN",
 			"Stop VPN",
+			"Pwnbox",
+			"My profile",
 			"Quit",
 		}
 
@@ -513,6 +517,14 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 				menuSubmitChallenge(m)
 			case "Sherlocks":
 				menuSherlocks(m)
+			case "Fortresses":
+				menuFortresses(m)
+			case "Pro Labs":
+				menuProlabs(m)
+			case "Pwnbox":
+				menuPwnbox(m)
+			case "My profile":
+				menuProfile(m)
 			case "Reset machine":
 				out, err := coreResetCmd()
 				if err != nil {
