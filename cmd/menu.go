@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/0xb0nzi/htb-cli/config"
+	"github.com/0xb0nzi/htb-cli/lib/hosts"
 	"github.com/0xb0nzi/htb-cli/lib/menu"
 	"github.com/0xb0nzi/htb-cli/lib/submit"
 	"github.com/0xb0nzi/htb-cli/lib/utils"
@@ -87,6 +88,33 @@ func menuBrowseAndStart(m *menu.Menu, label, url string) {
 		return
 	}
 	m.Notify(out)
+	menuMaybeAddHost(m)
+}
+
+// menuMaybeAddHost offers to map the freshly spawned machine's IP to a
+// <name>.htb hostname in /etc/hosts. It reads the canonical IP/name from the
+// active machine so it works regardless of how the machine was started. The
+// underlying lib/hosts add is idempotent, so re-running is harmless.
+func menuMaybeAddHost(m *menu.Menu) {
+	data, err := utils.GetInformationsFromActiveMachine()
+	if err != nil || data == nil {
+		return
+	}
+	ip, _ := data["ip"].(string)
+	name, _ := data["name"].(string)
+	if ip == "" || ip == "Undefined" || name == "" {
+		return
+	}
+
+	host := strings.ToLower(name) + ".htb"
+	if !m.Confirm(fmt.Sprintf("Add '%s  %s' to /etc/hosts?", ip, host)) {
+		return
+	}
+	if err := hosts.AddEntryToHosts(ip, host); err != nil {
+		m.Notify(fmt.Sprintf("hosts update failed: %v", err))
+		return
+	}
+	m.Notify(fmt.Sprintf("Added %s  %s to /etc/hosts", ip, host))
 }
 
 // menuStartByName prompts for a machine name and starts it.
@@ -101,6 +129,7 @@ func menuStartByName(m *menu.Menu) {
 		return
 	}
 	m.Notify(out)
+	menuMaybeAddHost(m)
 }
 
 // menuActiveInfo shows details about the currently running machine.
