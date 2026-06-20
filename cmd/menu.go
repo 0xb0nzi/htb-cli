@@ -120,6 +120,36 @@ func menuMaybeAddHost(m *menu.Menu) {
 	m.Notify(fmt.Sprintf("Added %s  %s to /etc/hosts", ip, host))
 }
 
+// menuStartingPoint lets the user pick a Starting Point tier, then browse and
+// start a machine from it. The v5 spTier listing shares the shape used by
+// menuBrowseAndStart, so the spawn path is reused as-is.
+func menuStartingPoint(m *menu.Menu) {
+	_, tier, err := m.Select("Starting Point tier", []string{"Tier 1", "Tier 2", "Tier 3"})
+	if err != nil {
+		return
+	}
+	n := strings.TrimSpace(strings.TrimPrefix(tier, "Tier "))
+	url := fmt.Sprintf("%s/machines?spTier=%s", config.BaseHackTheBoxAPIURLv5, n)
+	menuBrowseAndStart(m, "Starting Point", url)
+}
+
+// menuStartSeason launches the current Season / Release Arena machine, mirroring
+// `htb-cli start` with no machine argument.
+func menuStartSeason(m *menu.Menu) {
+	id, err := utils.SearchLastReleaseArenaMachine()
+	if err != nil {
+		m.Notify(fmt.Sprintf("Failed to find Season machine: %v", err))
+		return
+	}
+	out, err := coreStartCmd("", id)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Start failed: %v", err))
+		return
+	}
+	m.Notify(out)
+	menuMaybeAddHost(m)
+}
+
 // menuStartByName prompts for a machine name and starts it.
 func menuStartByName(m *menu.Menu) {
 	name, err := m.Input("Machine name")
@@ -442,6 +472,8 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 			"Start machine (by name)",
 			"Browse & start (active)",
 			"Browse & start (retired)",
+			"Starting Point",
+			"Season machine",
 			"Active machine info",
 			"Submit machine flag",
 			"Browse challenges",
@@ -467,6 +499,10 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 				menuBrowseAndStart(m, "active", machineURL)
 			case "Browse & start (retired)":
 				menuBrowseAndStart(m, "retired", retiredURL)
+			case "Starting Point":
+				menuStartingPoint(m)
+			case "Season machine":
+				menuStartSeason(m)
 			case "Active machine info":
 				menuActiveInfo(m)
 			case "Submit machine flag":
