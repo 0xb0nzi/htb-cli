@@ -153,6 +153,67 @@ func GetTaskByID(sherlockID string, sherlockTaskID int, sherlockHint bool) error
 	return nil
 }
 
+// SubmitTaskFlag submits a flag for a task (by its real task id) and returns the
+// server's response. Exported wrapper around submitTask for non-interactive
+// callers such as the menu.
+func SubmitTaskFlag(sherlockID string, taskID int, flag string) (string, error) {
+	return submitTask(sherlockID, strconv.Itoa(taskID), flag)
+}
+
+// Download fetches the Sherlock archive to downloadPath (password: hacktheblue).
+func Download(sherlockID string, downloadPath string) error {
+	url, err := getDownloadLink(sherlockID)
+	if err != nil {
+		return err
+	}
+	return downloadFile(url, downloadPath)
+}
+
+// GeneralInfoText returns scenario/file information about a Sherlock as a string,
+// for callers (the menu) that render it themselves rather than printing.
+func GeneralInfoText(sherlockID string) (string, error) {
+	url := fmt.Sprintf("%s/sherlocks/%s/play", config.BaseHackTheBoxAPIURL, sherlockID)
+	resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	info, ok := utils.ParseJsonMessage(resp, "data").(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected response from sherlock play")
+	}
+	field := func(key string) interface{} {
+		if v, ok := info[key]; ok && v != nil {
+			return v
+		}
+		return "-"
+	}
+	return fmt.Sprintf("Scenario: %v\n\nFile: %v   (%v)", field("scenario"), field("file_name"), field("file_size")), nil
+}
+
+// List returns all available Sherlocks as name/id pairs for selection.
+func List() ([]SherlockNameID, error) {
+	url := fmt.Sprintf("%s/sherlocks", config.BaseHackTheBoxAPIURL)
+	resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	jsonData, _ := io.ReadAll(resp.Body)
+	var parsedData SherlockData
+	if err := json.Unmarshal(jsonData, &parsedData); err != nil {
+		return nil, fmt.Errorf("error parsing JSON: %w", err)
+	}
+
+	var nameIDs []SherlockNameID
+	for _, s := range parsedData.Data {
+		nameIDs = append(nameIDs, SherlockNameID{s.Name, s.ID})
+	}
+	return nameIDs, nil
+}
+
 // GetTasks retrieves all tasks for a specific Sherlock challenge.
 func GetTasks(sherlockID string) (*SherlockDataTasks, error) {
 	url := fmt.Sprintf("%s/sherlocks/%s/tasks", config.BaseHackTheBoxAPIURL, sherlockID)
