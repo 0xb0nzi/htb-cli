@@ -120,6 +120,7 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 		data := info.(map[string]interface{})
 
 		var bodyData string
+		var challengeDescription string
 		if elementType == "Machine" {
 			status := utils.SetStatus(data)
 			retiredStatus := getMachineStatus(data)
@@ -131,14 +132,26 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 			ip := getIPStatus(data)
 			bodyData = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", data["name"], data["os"], retiredStatus, data["difficultyText"], data["stars"], ip, status, data["last_reset_time"], datetime)
 		} else if elementType == "Challenge" {
-			status := utils.SetStatus(data)
 			retiredStatus := getMachineStatus(data)
 			release_key := "release_date"
 			datetime, err := utils.ParseAndFormatDate(data[release_key].(string))
 			if err != nil {
 				return err
 			}
-			bodyData = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", data["name"], data["category_name"], retiredStatus, data["difficulty"], data["stars"], data["solves"], status, datetime)
+			solved := "No"
+			if v, ok := data["authUserSolve"].(bool); ok && v {
+				solved = "Yes"
+			}
+			bodyData = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n",
+				data["name"], data["category_name"], data["difficulty"], data["points"], data["solves"], solved, retiredStatus, datetime)
+
+			// Capture the prose synopsis and first blood to print under the table.
+			if desc, ok := data["description"].(string); ok {
+				challengeDescription = desc
+			}
+			if blood, ok := data["first_blood_user"].(string); ok && blood != "" {
+				challengeDescription += "\nFirst blood: " + blood
+			}
 		} else if elementType == "Username" {
 			// The fortress / pro-lab / activity panels are only rendered for
 			// user profiles, so fetch them here rather than for every lookup type.
@@ -148,6 +161,10 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 
 		utils.SetTabWriterData(w, bodyData)
 		w.Flush()
+
+		if challengeDescription != "" {
+			fmt.Printf("\nDescription: %s\n", challengeDescription)
+		}
 	}
 	return nil
 }
@@ -155,7 +172,7 @@ func fetchAndDisplayInfo(url, header string, params []string, elementType string
 // coreInfoCmd is the core of the info command; it checks the parameters and displays corresponding information.
 func coreInfoCmd(machineName []string, challengeName []string, usernameName []string) error {
 	machineHeader := "Name\tOS\tRetired\tDifficulty\tStars\tIP\tStatus\tLast Reset\tRelease"
-	challengeHeader := "Name\tCategory\tRetired\tDifficulty\tStars\tSolves\tStatus\tRelease"
+	challengeHeader := "Name\tCategory\tDifficulty\tPoints\tSolves\tSolved\tRetired\tRelease"
 	usernameHeader := "Name\tUser Owns\tSystem Owns\tUser Bloods\tSystem Bloods\tTeam\tUniversity\tRank\tGlobal Rank\tPoints"
 
 	type infoType struct {

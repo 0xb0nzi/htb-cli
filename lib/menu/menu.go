@@ -38,6 +38,10 @@ var ErrCancelled = fmt.Errorf("selection cancelled")
 // Menu wraps a chosen backend.
 type Menu struct {
 	Backend Backend
+	// stdin is a single shared reader for the terminal backend. Using one
+	// reader across prompts avoids losing input to a per-call reader's
+	// read-ahead buffer (which breaks piped/scripted input).
+	stdin *bufio.Reader
 }
 
 // graphical reports whether a graphical session is available for rofi/dmenu.
@@ -84,7 +88,7 @@ func New(backend Backend) *Menu {
 	if backend == "" {
 		backend = Detect()
 	}
-	return &Menu{Backend: backend}
+	return &Menu{Backend: backend, stdin: bufio.NewReader(os.Stdin)}
 }
 
 // Select presents the items and returns the chosen index and label. It returns
@@ -134,7 +138,7 @@ func (m *Menu) selectTerminal(prompt string, items []string) (int, string, error
 		fmt.Fprintf(os.Stderr, "  %2d) %s\n", i+1, item)
 	}
 	fmt.Fprintf(os.Stderr, "%s [1-%d]: ", prompt, len(items))
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, err := m.stdin.ReadString('\n')
 	if err != nil {
 		return -1, "", ErrCancelled
 	}
@@ -172,7 +176,7 @@ func (m *Menu) Input(prompt string) (string, error) {
 		return m.inputExternal("dmenu", []string{"-p", prompt})
 	default:
 		fmt.Fprintf(os.Stderr, "%s: ", prompt)
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		line, err := m.stdin.ReadString('\n')
 		if err != nil {
 			return "", ErrCancelled
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/0xb0nzi/htb-cli/config"
@@ -185,6 +186,163 @@ func menuConnectVPN(m *menu.Menu) {
 	m.Notify(out)
 }
 
+// challengeEntry is a single pickable challenge in a browse menu.
+type challengeEntry struct {
+	name string
+	id   int
+}
+
+// fetchChallengeList returns the active challenge name/id pairs for a picker.
+func fetchChallengeList() ([]challengeEntry, error) {
+	resp, err := utils.HtbRequest(http.MethodGet, config.BaseHackTheBoxAPIURL+"/challenge/list", nil)
+	if err != nil {
+		return nil, err
+	}
+	arr, ok := utils.ParseJsonMessage(resp, "challenges").([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected response from challenge list")
+	}
+
+	var entries []challengeEntry
+	for _, item := range arr {
+		mp, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := mp["name"].(string)
+		idf, _ := mp["id"].(float64)
+		if name == "" {
+			continue
+		}
+		entries = append(entries, challengeEntry{name: name, id: int(idf)})
+	}
+	return entries, nil
+}
+
+// challengeInfoText fetches /challenge/info/{id} and renders a human-readable
+// summary including the prose description and first blood.
+func challengeInfoText(id int) (string, error) {
+	resp, err := utils.HtbRequest(http.MethodGet, fmt.Sprintf("%s/challenge/info/%d", config.BaseHackTheBoxAPIURL, id), nil)
+	if err != nil {
+		return "", err
+	}
+	data, ok := utils.ParseJsonMessage(resp, "challenge").(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected response from challenge info")
+	}
+
+	field := func(key string) string {
+		if v, ok := data[key]; ok && v != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return "-"
+	}
+	solved := "No"
+	if v, ok := data["authUserSolve"].(bool); ok && v {
+		solved = "Yes"
+	}
+
+	msg := fmt.Sprintf("%s  [%s]\nDifficulty: %s   Points: %s   Solves: %s   Solved: %s",
+		field("name"), field("category_name"), field("difficulty"), field("points"), field("solves"), solved)
+	if blood := field("first_blood_user"); blood != "-" {
+		msg += "\nFirst blood: " + blood
+	}
+	if desc, ok := data["description"].(string); ok && desc != "" {
+		msg += "\n\n" + desc
+	}
+	return msg, nil
+}
+
+// menuShowChallenge displays a challenge's info and offers to submit a flag for it.
+func menuShowChallenge(m *menu.Menu, id int) {
+	info, err := challengeInfoText(id)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Failed to load challenge: %v", err))
+		return
+	}
+	m.Notify(info)
+	if m.Confirm("Submit a flag for this challenge?") {
+		menuSubmitChallengeByID(m, id)
+	}
+}
+
+// menuBrowseChallenges lists challenges, lets the user pick one and shows its info.
+func menuBrowseChallenges(m *menu.Menu) {
+	entries, err := fetchChallengeList()
+	if err != nil {
+		m.Notify(fmt.Sprintf("Failed to load challenges: %v", err))
+		return
+	}
+	if len(entries) == 0 {
+		m.Notify("No challenges found")
+		return
+	}
+
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.name
+	}
+	idx, _, err := m.Select("Challenge", names)
+	if err != nil || idx < 0 {
+		return
+	}
+	menuShowChallenge(m, entries[idx].id)
+}
+
+// askChallengeDifficulty prompts for the required 1-10 challenge rating.
+func askChallengeDifficulty(m *menu.Menu) (int, bool) {
+	raw, err := m.Input("Rate difficulty 1-10")
+	if err != nil {
+		return 0, false
+	}
+	d, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || d < 1 || d > 10 {
+		m.Notify("Difficulty must be a number from 1 to 10")
+		return 0, false
+	}
+	return d, true
+}
+
+// menuSubmitChallengeByID submits a flag for a known challenge id.
+func menuSubmitChallengeByID(m *menu.Menu, id int) {
+	flag, err := m.Password("Flag")
+	if err != nil || strings.TrimSpace(flag) == "" {
+		return
+	}
+	difficulty, ok := askChallengeDifficulty(m)
+	if !ok {
+		return
+	}
+	out, _, err := submit.CoreSubmitCmd(difficulty, "challenge-id", strconv.Itoa(id), flag)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Submit failed: %v", err))
+		return
+	}
+	m.Notify(out)
+}
+
+// menuSubmitChallenge submits a challenge flag by challenge name.
+func menuSubmitChallenge(m *menu.Menu) {
+	name, err := m.Input("Challenge name")
+	if err != nil || strings.TrimSpace(name) == "" {
+		return
+	}
+	flag, err := m.Password("Flag")
+	if err != nil || strings.TrimSpace(flag) == "" {
+		return
+	}
+	difficulty, ok := askChallengeDifficulty(m)
+	if !ok {
+		return
+	}
+	out, _, err := submit.CoreSubmitCmd(difficulty, "challenge", name, flag)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Submit failed: %v", err))
+		return
+	}
+	m.Notify(out)
+}
+
 // menuSubmitFlag prompts for a target and flag, then submits it.
 func menuSubmitFlag(m *menu.Menu) {
 	name, err := m.Input("Machine name (blank = release arena)")
@@ -237,7 +395,9 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 			"Browse & start (active)",
 			"Browse & start (retired)",
 			"Active machine info",
-			"Submit flag",
+			"Submit machine flag",
+			"Browse challenges",
+			"Submit challenge flag",
 			"Reset machine",
 			"Stop machine",
 			"Connect VPN",
@@ -260,8 +420,12 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 				menuBrowseAndStart(m, "retired", retiredURL)
 			case "Active machine info":
 				menuActiveInfo(m)
-			case "Submit flag":
+			case "Submit machine flag":
 				menuSubmitFlag(m)
+			case "Browse challenges":
+				menuBrowseChallenges(m)
+			case "Submit challenge flag":
+				menuSubmitChallenge(m)
 			case "Reset machine":
 				out, err := coreResetCmd()
 				if err != nil {

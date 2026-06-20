@@ -1,6 +1,28 @@
 package menu
 
-import "testing"
+import (
+	"bufio"
+	"strings"
+	"testing"
+)
+
+// TestTerminalSharedReader guards against a regression where each prompt created
+// its own bufio.Reader: the first reader's read-ahead would swallow input meant
+// for later prompts, breaking piped/scripted menu use. A single shared reader
+// must let sequential Select/Input calls each consume one line.
+func TestTerminalSharedReader(t *testing.T) {
+	m := &Menu{Backend: BackendTerminal, stdin: bufio.NewReader(strings.NewReader("2\nReactor\n"))}
+
+	idx, choice, err := m.selectTerminal("pick", []string{"a", "b", "c"})
+	if err != nil || idx != 1 || choice != "b" {
+		t.Fatalf("selectTerminal = (%d, %q, %v), want (1, \"b\", nil)", idx, choice, err)
+	}
+
+	val, err := m.Input("machine")
+	if err != nil || val != "Reactor" {
+		t.Fatalf("Input = (%q, %v), want (\"Reactor\", nil)", val, err)
+	}
+}
 
 func TestDetectHonoursOverride(t *testing.T) {
 	t.Setenv("HTB_MENU_BACKEND", "fzf")

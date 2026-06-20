@@ -42,7 +42,7 @@ func CoreSubmitCmd(difficultyParam int, modeType string, modeValue string, flagV
 	var challengeID string
 	var mID int
 
-	if modeType == "challenge" {
+	if modeType == "challenge" || modeType == "challenge-id" {
 		config.GlobalConfig.Logger.Info("Challenge submit requested")
 		if difficultyParam != 0 {
 			if difficultyParam < 1 || difficultyParam > 10 {
@@ -50,14 +50,19 @@ func CoreSubmitCmd(difficultyParam int, modeType string, modeValue string, flagV
 			}
 			difficultyString = strconv.Itoa(difficultyParam * 10)
 		}
-		challenges, err := utils.SearchChallengeByName(modeValue)
-		if err != nil {
-			return "", 0, err
-		}
-		config.GlobalConfig.Logger.Debug(fmt.Sprintf("Challenge found: %v", challenges))
 
-		// TODO: get this int
-		challengeID = strconv.Itoa(challenges.ID)
+		// "challenge" resolves the id from a name search; "challenge-id" takes
+		// the numeric id directly (used by the menu's browse flow).
+		if modeType == "challenge-id" {
+			challengeID = modeValue
+		} else {
+			challenges, err := utils.SearchChallengeByName(modeValue)
+			if err != nil {
+				return "", 0, err
+			}
+			config.GlobalConfig.Logger.Debug(fmt.Sprintf("Challenge found: %v", challenges))
+			challengeID = strconv.Itoa(challenges.ID)
+		}
 
 		url = config.BaseHackTheBoxAPIURL + "/challenge/own"
 		payload = map[string]interface{}{
