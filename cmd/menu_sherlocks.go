@@ -42,10 +42,14 @@ func menuSherlocks(m *menu.Menu) {
 		return
 	}
 	s := items[idx]
-	id := strconv.Itoa(s.ID)
+	menuSherlockActions(m, s.Name, strconv.Itoa(s.ID))
+}
 
+// menuSherlockActions is the per-Sherlock action sub-loop (info / download /
+// tasks & submit). Shared by the Sherlocks browser and Track items.
+func menuSherlockActions(m *menu.Menu, name, id string) {
 	for {
-		_, action, err := m.Select(s.Name, []string{"Info", "Download archive", "Tasks / submit", "Back"})
+		_, action, err := m.Select(name, []string{"Info", "Download archive", "Tasks / submit", "Back"})
 		if err != nil {
 			return
 		}
@@ -58,7 +62,7 @@ func menuSherlocks(m *menu.Menu) {
 			}
 			m.Notify(txt)
 		case "Download archive":
-			menuSherlockDownload(m, s.Name, id)
+			menuSherlockDownload(m, name, id)
 		case "Tasks / submit":
 			menuSherlockTasks(m, id)
 		case "Back":

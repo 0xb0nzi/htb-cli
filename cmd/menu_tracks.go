@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/0xb0nzi/htb-cli/config"
 	"github.com/0xb0nzi/htb-cli/lib/menu"
@@ -133,27 +135,59 @@ func menuShowTrack(m *menu.Menu, id int) {
 		status = "enrolled"
 	}
 
-	msg := fmt.Sprintf("%s  [%s] — %s", name, diff, status)
+	header := fmt.Sprintf("%s  [%s] — %s", name, diff, status)
 	if desc != "" {
-		msg += "\n\n" + desc
+		header += "\n\n" + desc
 	}
+	m.Notify(header)
 
-	if list, ok := d["items"].([]interface{}); ok && len(list) > 0 {
-		msg += "\n\nItems:"
-		for _, it := range list {
-			mp, ok := it.(map[string]interface{})
-			if !ok {
-				continue
-			}
+	// Build the selectable item list so you can drill in and act on each item
+	// (start a machine, open a sherlock, view/submit a challenge) right here.
+	items, _ := d["items"].([]interface{})
+	if len(items) == 0 {
+		return
+	}
+	for {
+		labels := make([]string, 0, len(items)+1)
+		for _, it := range items {
+			mp, _ := it.(map[string]interface{})
 			mark := "·"
 			if truthy(mp["complete"]) {
 				mark = "✓"
 			}
-			itemName, _ := mp["name"].(string)
 			itemType, _ := mp["type"].(string)
+			itemName, _ := mp["name"].(string)
 			itemDiff, _ := mp["difficulty"].(string)
-			msg += fmt.Sprintf("\n  [%s] %s: %s (%s)", mark, itemType, itemName, itemDiff)
+			labels = append(labels, fmt.Sprintf("[%s] %s: %s (%s)", mark, itemType, itemName, itemDiff))
 		}
+		labels = append(labels, "Back")
+
+		idx, _, err := m.Select(name+" items", labels)
+		if err != nil || idx < 0 || idx >= len(items) {
+			return // Back or cancel
+		}
+		mp, _ := items[idx].(map[string]interface{})
+		menuOpenTrackItem(m, mp)
 	}
-	m.Notify(msg)
+}
+
+// menuOpenTrackItem routes a track item to the right handler by type.
+func menuOpenTrackItem(m *menu.Menu, mp map[string]interface{}) {
+	id := asInt(mp["id"])
+	name, _ := mp["name"].(string)
+	switch t, _ := mp["type"].(string); t {
+	case "machine":
+		os, _ := mp["os"].(string)
+		if os != "" {
+			os = strings.ToUpper(os[:1]) + strings.ToLower(os[1:])
+		}
+		diff, _ := mp["difficulty"].(string)
+		menuShowMachine(m, machineEntry{name: name, id: id, os: os, difficulty: diff})
+	case "challenge":
+		menuShowChallenge(m, id)
+	case "sherlock":
+		menuSherlockActions(m, name, strconv.Itoa(id))
+	default:
+		m.Notify(fmt.Sprintf("%s (%s) — not openable from the menu yet", name, t))
+	}
 }
