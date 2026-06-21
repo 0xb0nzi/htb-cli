@@ -134,12 +134,11 @@ func menuStartMachine(m *menu.Menu, name string, id int) {
 	menuMaybeAddHost(m)
 }
 
-// menuShowMachine displays a machine's details and offers to start it.
-func menuShowMachine(m *menu.Menu, e machineEntry) {
-	info, err := fetchMachineProfile(e.id)
+// machineInfoText fetches a machine's profile and formats it for display.
+func machineInfoText(id int) (string, error) {
+	info, err := fetchMachineProfile(id)
 	if err != nil {
-		m.Notify(fmt.Sprintf("Failed to load machine: %v", err))
-		return
+		return "", err
 	}
 	field := func(key string) string {
 		if v, ok := info[key]; ok && v != nil {
@@ -158,14 +157,30 @@ func menuShowMachine(m *menu.Menu, e machineEntry) {
 	if ip := field("ip"); ip != "-" && ip != "" {
 		msg += "\nIP: " + ip
 	}
-	m.Notify(msg)
+	return msg, nil
+}
 
-	_, action, err := m.Select(e.name, []string{"Start machine", "Back"})
-	if err != nil {
-		return
-	}
-	if action == "Start machine" {
-		menuStartMachine(m, e.name, e.id)
+// menuShowMachine offers Info / Start / Back for a selected machine.
+func menuShowMachine(m *menu.Menu, e machineEntry) {
+	for {
+		_, action, err := m.Select(e.name, []string{"Info", "Start machine", "Back"})
+		if err != nil {
+			return
+		}
+		switch action {
+		case "Info":
+			txt, err := machineInfoText(e.id)
+			if err != nil {
+				m.Notify(fmt.Sprintf("Failed to load machine: %v", err))
+				continue
+			}
+			m.Notify(txt)
+		case "Start machine":
+			menuStartMachine(m, e.name, e.id)
+			return
+		case "Back":
+			return
+		}
 	}
 }
 
@@ -413,13 +428,11 @@ func menuShowChallenge(m *menu.Menu, id int) {
 		m.Notify(fmt.Sprintf("Failed to load challenge: %v", err))
 		return
 	}
-	m.Notify(formatChallengeInfo(data))
-
 	name, _ := data["name"].(string)
 	downloadable, _ := data["download"].(bool)
 
 	for {
-		opts := []string{"Submit flag"}
+		opts := []string{"Info", "Submit flag"}
 		if downloadable {
 			opts = append(opts, "Download files")
 		}
@@ -430,6 +443,8 @@ func menuShowChallenge(m *menu.Menu, id int) {
 			return
 		}
 		switch action {
+		case "Info":
+			m.Notify(formatChallengeInfo(data))
 		case "Submit flag":
 			menuSubmitChallengeByID(m, id)
 		case "Download files":
