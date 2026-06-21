@@ -192,24 +192,37 @@ func GeneralInfoText(sherlockID string) (string, error) {
 	return fmt.Sprintf("Scenario: %v\n\nFile: %v   (%v)", field("scenario"), field("file_name"), field("file_size")), nil
 }
 
-// List returns all available Sherlocks as name/id pairs for selection.
+// List returns all available Sherlocks as name/id pairs for selection, walking
+// every page so callers get the full set (the API paginates this listing).
 func List() ([]SherlockNameID, error) {
-	url := fmt.Sprintf("%s/sherlocks", config.BaseHackTheBoxAPIURL)
-	resp, err := utils.HtbRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	jsonData, _ := io.ReadAll(resp.Body)
-	var parsedData SherlockData
-	if err := json.Unmarshal(jsonData, &parsedData); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %w", err)
-	}
-
 	var nameIDs []SherlockNameID
-	for _, s := range parsedData.Data {
-		nameIDs = append(nameIDs, SherlockNameID{s.Name, s.ID})
+	for page := 1; page <= 100; page++ { // cap guards against a server ignoring ?page
+		url := fmt.Sprintf("%s/sherlocks?page=%d", config.BaseHackTheBoxAPIURL, page)
+		resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		jsonData, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var parsed struct {
+			Data []SherlockElement `json:"data"`
+			Meta struct {
+				CurrentPage int `json:"current_page"`
+				LastPage    int `json:"last_page"`
+			} `json:"meta"`
+		}
+		if err := json.Unmarshal(jsonData, &parsed); err != nil {
+			return nil, fmt.Errorf("error parsing JSON: %w", err)
+		}
+		for _, s := range parsed.Data {
+			nameIDs = append(nameIDs, SherlockNameID{s.Name, s.ID})
+		}
+
+		// Stop when there's no pagination metadata or we've hit the last page.
+		if parsed.Meta.LastPage == 0 || parsed.Meta.CurrentPage >= parsed.Meta.LastPage {
+			break
+		}
 	}
 	return nameIDs, nil
 }

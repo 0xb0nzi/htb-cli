@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,31 +27,63 @@ type machineEntry struct {
 	id   int
 }
 
-// fetchMachineList returns the name/id pairs from a machine listing endpoint so
-// they can be presented in a picker.
+// fetchAllPages walks a paginated HTB "data"+"meta" listing and returns every
+// row across all pages. Handing the full set to rofi/fzf means you can scroll
+// and filter the entire list instead of just the first page. Endpoints without
+// "meta" are treated as single-page (no behaviour change).
+func fetchAllPages(baseURL string) ([]map[string]interface{}, error) {
+	var all []map[string]interface{}
+	for page := 1; page <= 100; page++ { // hard cap guards against a server that ignores ?page
+		sep := "?"
+		if strings.Contains(baseURL, "?") {
+			sep = "&"
+		}
+		resp, err := utils.HtbRequest(http.MethodGet, fmt.Sprintf("%s%spage=%d", baseURL, sep, page), nil)
+		if err != nil {
+			return nil, err
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		var root map[string]interface{}
+		if err := json.Unmarshal(body, &root); err != nil {
+			return nil, fmt.Errorf("unexpected list response")
+		}
+		data, _ := root["data"].([]interface{})
+		for _, it := range data {
+			if mp, ok := it.(map[string]interface{}); ok {
+				all = append(all, mp)
+			}
+		}
+
+		meta, ok := root["meta"].(map[string]interface{})
+		if !ok {
+			break // no pagination metadata -> single page
+		}
+		last := asInt(meta["last_page"])
+		if last == 0 || asInt(meta["current_page"]) >= last {
+			break
+		}
+	}
+	return all, nil
+}
+
+// fetchMachineList returns the name/id pairs across ALL pages of a machine
+// listing endpoint so they can be presented (and filtered) in a picker.
 func fetchMachineList(url string) ([]machineEntry, error) {
-	resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+	rows, err := fetchAllPages(url)
 	if err != nil {
 		return nil, err
 	}
-	data := utils.ParseJsonMessage(resp, "data")
-	arr, ok := data.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("unexpected response format from %s", url)
-	}
-
 	var entries []machineEntry
-	for _, item := range arr {
-		mp, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
+	for _, mp := range rows {
 		name, _ := mp["name"].(string)
-		idf, _ := mp["id"].(float64)
 		if name == "" {
 			continue
 		}
-		entries = append(entries, machineEntry{name: name, id: int(idf)})
+		entries = append(entries, machineEntry{name: name, id: asInt(mp["id"])})
 	}
 	return entries, nil
 }

@@ -16,11 +16,14 @@ import (
 )
 
 const (
-	machineURL = config.BaseHackTheBoxAPIURL + "/machine/paginated/?per_page=20"
-	retiredURL = config.BaseHackTheBoxAPIURL + "/machine/list/retired/paginated/?per_page=20&sort_by=release-date"
+	// per_page=100 keeps pagination to a few requests; retired has hundreds of
+	// machines, and per_page=20 meant 30+ sequential calls (slow + rate-limit
+	// prone). fetchAllPages still walks any remaining pages.
+	machineURL = config.BaseHackTheBoxAPIURL + "/machine/paginated/?per_page=100"
+	retiredURL = config.BaseHackTheBoxAPIURL + "/machine/list/retired/paginated/?per_page=100&sort_by=release-date"
 	// HTB removed the v4 /machine/unreleased route; the unreleased listing now
 	// lives under the unified v5 /machines endpoint filtered by state.
-	scheduledURL   = config.BaseHackTheBoxAPIURLv5 + "/machines?state=unreleased&per_page=20"
+	scheduledURL   = config.BaseHackTheBoxAPIURLv5 + "/machines?state=unreleased&per_page=100"
 	activeTitle    = "Active"
 	retiredTitle   = "Retired"
 	scheduledTitle = "Scheduled"
@@ -119,12 +122,14 @@ func createFlex(info interface{}, title string, isScheduled bool) (*tview.Flex, 
 // prints them as a single JSON document. It powers `htb-cli machines --json`,
 // the scriptable counterpart of the TUI view.
 func outputMachinesJSON() error {
-	fetch := func(url string) (interface{}, error) {
-		resp, err := utils.HtbRequest(http.MethodGet, url, nil)
+	// fetchAllPages walks every page so the JSON contains the full lists, not
+	// just page 1 (mirrors the menu's pagination).
+	fetch := func(url string) ([]map[string]interface{}, error) {
+		rows, err := fetchAllPages(url)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get data from %s: %w", url, err)
 		}
-		return utils.ParseJsonMessage(resp, "data"), nil
+		return rows, nil
 	}
 
 	active, err := fetch(machineURL)
