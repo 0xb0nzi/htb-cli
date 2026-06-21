@@ -479,6 +479,7 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 			"Browse challenges",
 			"Submit challenge flag",
 			"Sherlocks",
+			"Tracks",
 			"Fortresses",
 			"Pro Labs",
 			"Reset machine",
@@ -517,6 +518,8 @@ HTB_MENU_BACKEND environment variable. Designed to be bound to an i3 keybind:
 				menuSubmitChallenge(m)
 			case "Sherlocks":
 				menuSherlocks(m)
+			case "Tracks":
+				menuTracks(m)
 			case "Fortresses":
 				menuFortresses(m)
 			case "Pro Labs":
