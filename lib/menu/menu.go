@@ -235,6 +235,22 @@ func (m *Menu) Confirm(prompt string) bool {
 	return choice == "Yes"
 }
 
+// Progress shows a non-blocking, transient status update (e.g. "Spawning…").
+// Unlike Notify, it must not block the flow, so graphical backends use a desktop
+// notification (notify-send) rather than a modal rofi dialog.
+func (m *Menu) Progress(message string) {
+	switch m.Backend {
+	case BackendRofi, BackendDmenu, BackendFzf:
+		if inPath("notify-send") {
+			_ = exec.Command("notify-send", "-t", "5000", "HackTheBox", message).Run()
+			return
+		}
+		fmt.Fprintln(os.Stderr, message)
+	default:
+		fmt.Fprintln(os.Stderr, message)
+	}
+}
+
 // Notify shows a short informational message to the user through the active
 // backend, so menu results are visible even when launched from a keybind with
 // no terminal attached.

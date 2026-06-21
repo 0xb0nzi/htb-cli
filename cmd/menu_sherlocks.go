@@ -24,11 +24,20 @@ func menuSherlocks(m *menu.Menu) {
 		return
 	}
 
-	names := make([]string, len(items))
+	labels := make([]string, len(items))
 	for i, s := range items {
-		names[i] = s.Name
+		mark := "  "
+		if s.Owned {
+			mark = "✓ "
+		}
+		meta := strings.TrimSpace(strings.Trim(fmt.Sprintf("%s · %s", s.Category, s.Difficulty), " ·"))
+		if meta == "" {
+			labels[i] = mark + s.Name
+		} else {
+			labels[i] = fmt.Sprintf("%s%s  [%s]", mark, s.Name, meta)
+		}
 	}
-	idx, _, err := m.Select("Sherlock", names)
+	idx, _, err := m.Select("Sherlock  (✓ = owned)", labels)
 	if err != nil || idx < 0 {
 		return
 	}

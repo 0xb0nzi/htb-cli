@@ -23,8 +23,19 @@ import (
 
 // machineEntry is a single pickable machine in a browse menu.
 type machineEntry struct {
-	name string
-	id   int
+	name       string
+	id         int
+	os         string
+	difficulty string
+}
+
+// label renders a list row with OS and difficulty for at-a-glance scanning.
+func (e machineEntry) label() string {
+	meta := strings.TrimSpace(strings.Trim(fmt.Sprintf("%s · %s", e.os, e.difficulty), " ·"))
+	if meta == "" {
+		return e.name
+	}
+	return fmt.Sprintf("%s  [%s]", e.name, meta)
 }
 
 // fetchAllPages walks a paginated HTB "data"+"meta" listing and returns every
@@ -83,9 +94,79 @@ func fetchMachineList(url string) ([]machineEntry, error) {
 		if name == "" {
 			continue
 		}
-		entries = append(entries, machineEntry{name: name, id: asInt(mp["id"])})
+		os, _ := mp["os"].(string)
+		if os != "" { // v5 returns "linux", v4 "Linux" — normalize for the label
+			os = strings.ToUpper(os[:1]) + strings.ToLower(os[1:])
+		}
+		diff, _ := mp["difficultyText"].(string)
+		entries = append(entries, machineEntry{name: name, id: asInt(mp["id"]), os: os, difficulty: diff})
 	}
 	return entries, nil
+}
+
+// fetchMachineProfile returns the /machine/profile/{id} info map.
+func fetchMachineProfile(id int) (map[string]interface{}, error) {
+	resp, err := utils.HtbRequest(http.MethodGet, fmt.Sprintf("%s/machine/profile/%d", config.BaseHackTheBoxAPIURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+	info, ok := utils.ParseJsonMessage(resp, "info").(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected machine profile response")
+	}
+	return info, nil
+}
+
+// menuStartMachine is the shared spawn path: a progress notification, the spawn
+// itself, the result, and the optional /etc/hosts entry.
+func menuStartMachine(m *menu.Menu, name string, id int) {
+	if name != "" {
+		m.Progress(fmt.Sprintf("Spawning %s… (fetching IP can take a minute)", name))
+	} else {
+		m.Progress("Spawning machine…")
+	}
+	out, err := coreStartCmd(name, id)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Start failed: %v", err))
+		return
+	}
+	m.Notify(out)
+	menuMaybeAddHost(m)
+}
+
+// menuShowMachine displays a machine's details and offers to start it.
+func menuShowMachine(m *menu.Menu, e machineEntry) {
+	info, err := fetchMachineProfile(e.id)
+	if err != nil {
+		m.Notify(fmt.Sprintf("Failed to load machine: %v", err))
+		return
+	}
+	field := func(key string) string {
+		if v, ok := info[key]; ok && v != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return "-"
+	}
+	status := "active"
+	if truthy(info["retired"]) {
+		status = "retired"
+	}
+	msg := fmt.Sprintf("%s  [%s · %s · %s]\nPoints: %s   Rating: %s\nUser owns: %s   Root owns: %s   Released: %s",
+		field("name"), field("os"), field("difficultyText"), status,
+		field("points"), field("stars"),
+		field("user_owns_count"), field("root_owns_count"), field("release"))
+	if ip := field("ip"); ip != "-" && ip != "" {
+		msg += "\nIP: " + ip
+	}
+	m.Notify(msg)
+
+	_, action, err := m.Select(e.name, []string{"Start machine", "Back"})
+	if err != nil {
+		return
+	}
+	if action == "Start machine" {
+		menuStartMachine(m, e.name, e.id)
+	}
 }
 
 // menuBrowseAndStart lists machines from url, lets the user pick one, and starts it.
@@ -100,32 +181,23 @@ func menuBrowseAndStart(m *menu.Menu, label, url string) {
 		return
 	}
 
-	names := make([]string, len(entries))
+	labels := make([]string, len(entries))
 	for i, e := range entries {
-		names[i] = e.name
+		labels[i] = e.label()
 	}
 
-	idx, chosen, err := m.Select(label+" machine", names)
+	idx, chosen, err := m.Select(label+" machine", labels)
 	if err != nil {
 		return // cancelled
 	}
 
-	// Resolve the id: a normal pick gives an index; a free-typed rofi entry
-	// (idx == -1) falls back to a name search inside coreStartCmd.
-	id := 0
-	name := chosen
-	if idx >= 0 {
-		id = entries[idx].id
-		name = entries[idx].name
-	}
-
-	out, err := coreStartCmd(name, id)
-	if err != nil {
-		m.Notify(fmt.Sprintf("Start failed: %v", err))
+	// A normal pick gives an index -> show details + start option. A free-typed
+	// rofi entry (idx == -1) has no id, so spawn it directly by name.
+	if idx < 0 {
+		menuStartMachine(m, chosen, 0)
 		return
 	}
-	m.Notify(out)
-	menuMaybeAddHost(m)
+	menuShowMachine(m, entries[idx])
 }
 
 // menuMaybeAddHost offers to map the freshly spawned machine's IP to a
@@ -175,13 +247,7 @@ func menuStartSeason(m *menu.Menu) {
 		m.Notify(fmt.Sprintf("Failed to find Season machine: %v", err))
 		return
 	}
-	out, err := coreStartCmd("", id)
-	if err != nil {
-		m.Notify(fmt.Sprintf("Start failed: %v", err))
-		return
-	}
-	m.Notify(out)
-	menuMaybeAddHost(m)
+	menuStartMachine(m, "", id)
 }
 
 // menuStartByName prompts for a machine name and starts it.
@@ -190,13 +256,7 @@ func menuStartByName(m *menu.Menu) {
 	if err != nil || strings.TrimSpace(name) == "" {
 		return
 	}
-	out, err := coreStartCmd(name, 0)
-	if err != nil {
-		m.Notify(fmt.Sprintf("Start failed: %v", err))
-		return
-	}
-	m.Notify(out)
-	menuMaybeAddHost(m)
+	menuStartMachine(m, name, 0)
 }
 
 // menuActiveInfo shows details about the currently running machine.
@@ -254,11 +314,27 @@ func menuConnectVPN(m *menu.Menu) {
 
 // challengeEntry is a single pickable challenge in a browse menu.
 type challengeEntry struct {
-	name string
-	id   int
+	name       string
+	id         int
+	category   string
+	difficulty string
+	solved     bool
 }
 
-// fetchChallengeList returns the active challenge name/id pairs for a picker.
+// label renders a challenge row with category/difficulty and a solved marker.
+func (e challengeEntry) label() string {
+	mark := "  "
+	if e.solved {
+		mark = "✓ "
+	}
+	meta := strings.TrimSpace(strings.Trim(fmt.Sprintf("%s · %s", e.category, e.difficulty), " ·"))
+	if meta == "" {
+		return mark + e.name
+	}
+	return fmt.Sprintf("%s%s  [%s]", mark, e.name, meta)
+}
+
+// fetchChallengeList returns the challenge entries for a picker.
 func fetchChallengeList() ([]challengeEntry, error) {
 	resp, err := utils.HtbRequest(http.MethodGet, config.BaseHackTheBoxAPIURL+"/challenge/list", nil)
 	if err != nil {
@@ -276,11 +352,18 @@ func fetchChallengeList() ([]challengeEntry, error) {
 			continue
 		}
 		name, _ := mp["name"].(string)
-		idf, _ := mp["id"].(float64)
 		if name == "" {
 			continue
 		}
-		entries = append(entries, challengeEntry{name: name, id: int(idf)})
+		cat, _ := mp["category_name"].(string)
+		diff, _ := mp["difficulty"].(string)
+		entries = append(entries, challengeEntry{
+			name:       name,
+			id:         asInt(mp["id"]),
+			category:   cat,
+			difficulty: diff,
+			solved:     truthy(mp["authUserSolve"]) || truthy(mp["solved"]) || truthy(mp["isCompleted"]),
+		})
 	}
 	return entries, nil
 }
@@ -390,11 +473,11 @@ func menuBrowseChallenges(m *menu.Menu) {
 		return
 	}
 
-	names := make([]string, len(entries))
+	labels := make([]string, len(entries))
 	for i, e := range entries {
-		names[i] = e.name
+		labels[i] = e.label()
 	}
-	idx, _, err := m.Select("Challenge", names)
+	idx, _, err := m.Select("Challenge  (✓ = solved)", labels)
 	if err != nil || idx < 0 {
 		return
 	}

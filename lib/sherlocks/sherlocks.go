@@ -216,7 +216,13 @@ func List() ([]SherlockNameID, error) {
 			return nil, fmt.Errorf("error parsing JSON: %w", err)
 		}
 		for _, s := range parsed.Data {
-			nameIDs = append(nameIDs, SherlockNameID{s.Name, s.ID})
+			nameIDs = append(nameIDs, SherlockNameID{
+				Name:       s.Name,
+				ID:         s.ID,
+				Difficulty: s.Difficulty,
+				Category:   s.CategoryName,
+				Owned:      s.IsOwned,
+			})
 		}
 
 		// Stop when there's no pagination metadata or we've hit the last page.
@@ -295,7 +301,7 @@ func SearchIDByName(sherlockSearch string) (string, error) {
 
 	var nameIDs []SherlockNameID
 	for _, challenge := range parsedData.Data {
-		nameIDs = append(nameIDs, SherlockNameID{challenge.Name, challenge.ID})
+		nameIDs = append(nameIDs, SherlockNameID{Name: challenge.Name, ID: challenge.ID})
 	}
 
 	var names []string

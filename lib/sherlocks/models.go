@@ -14,8 +14,11 @@ type SherlockDataTasks struct {
 }
 
 type SherlockElement struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Difficulty   string `json:"difficulty"`
+	CategoryName string `json:"category_name"`
+	IsOwned      bool   `json:"is_owned"`
 }
 
 type SherlockData struct {
@@ -23,8 +26,11 @@ type SherlockData struct {
 }
 
 type SherlockNameID struct {
-	Name string
-	ID   int
+	Name       string
+	ID         int
+	Difficulty string
+	Category   string
+	Owned      bool
 }
 
 type DownloadFile struct {
