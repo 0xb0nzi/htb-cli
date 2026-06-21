@@ -257,7 +257,9 @@ func (m *Menu) Progress(message string) {
 func (m *Menu) Notify(message string) {
 	switch m.Backend {
 	case BackendRofi:
-		_ = exec.Command("rofi", "-e", message).Run()
+		// rofiBaseArgs pins -modi drun here too: the message dialog still parses
+		// the user's config, so without it a broken modi list errors out.
+		_ = exec.Command("rofi", append([]string{"-e", message}, rofiBaseArgs()...)...).Run()
 	case BackendDmenu, BackendFzf:
 		if inPath("notify-send") {
 			_ = exec.Command("notify-send", "HackTheBox", message).Run()
