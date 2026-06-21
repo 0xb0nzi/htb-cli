@@ -54,14 +54,18 @@ func inPath(bin string) bool {
 	return err == nil
 }
 
-// rofiThemeArgs returns the rofi -theme flag when HTB_ROFI_THEME points at a
-// theme file, letting the distribution layer ship a consistent look without
-// touching the user's global rofi config.
-func rofiThemeArgs() []string {
+// rofiBaseArgs returns flags applied to every rofi dmenu invocation:
+//   - "-modi drun" pins a known-good mode so a broken/custom "modi" list in the
+//     user's rofi config (e.g. script modes that fail to load) can't make rofi
+//     exit non-zero — which the menu would otherwise read as a cancellation and
+//     break navigation. dmenu mode doesn't use modi, so this is purely defensive.
+//   - "-theme <file>" when HTB_ROFI_THEME is set, for a consistent look.
+func rofiBaseArgs() []string {
+	args := []string{"-modi", "drun"}
 	if theme := os.Getenv("HTB_ROFI_THEME"); theme != "" {
-		return []string{"-theme", theme}
+		args = append(args, "-theme", theme)
 	}
-	return nil
+	return args
 }
 
 // Detect picks the best backend for the current environment. It honours an
@@ -99,7 +103,7 @@ func (m *Menu) Select(prompt string, items []string) (int, string, error) {
 	}
 	switch m.Backend {
 	case BackendRofi:
-		return m.selectExternal("rofi", append([]string{"-dmenu", "-i", "-p", prompt}, rofiThemeArgs()...), items)
+		return m.selectExternal("rofi", append([]string{"-dmenu", "-i", "-p", prompt}, rofiBaseArgs()...), items)
 	case BackendDmenu:
 		return m.selectExternal("dmenu", []string{"-i", "-p", prompt}, items)
 	case BackendFzf:
@@ -171,7 +175,7 @@ func parseTerminalChoice(line string, count int) (int, error) {
 func (m *Menu) Input(prompt string) (string, error) {
 	switch m.Backend {
 	case BackendRofi:
-		return m.inputExternal("rofi", append([]string{"-dmenu", "-p", prompt, "-l", "0"}, rofiThemeArgs()...))
+		return m.inputExternal("rofi", append([]string{"-dmenu", "-p", prompt, "-l", "0"}, rofiBaseArgs()...))
 	case BackendDmenu:
 		return m.inputExternal("dmenu", []string{"-p", prompt})
 	default:
@@ -201,7 +205,7 @@ func (m *Menu) inputExternal(bin string, args []string) (string, error) {
 // uses term.ReadPassword. (fzf/dmenu fall back to a masked rofi or terminal.)
 func (m *Menu) Password(prompt string) (string, error) {
 	if m.Backend == BackendRofi {
-		cmd := exec.Command("rofi", append([]string{"-dmenu", "-password", "-p", prompt, "-l", "0"}, rofiThemeArgs()...)...)
+		cmd := exec.Command("rofi", append([]string{"-dmenu", "-password", "-p", prompt, "-l", "0"}, rofiBaseArgs()...)...)
 		cmd.Stdin = strings.NewReader("")
 		cmd.Stderr = os.Stderr
 		out, err := cmd.Output()
